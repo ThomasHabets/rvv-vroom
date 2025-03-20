@@ -1,7 +1,7 @@
 type Complex = num_complex::Complex<f32>;
 
 fn mul_vec(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
-    left.iter().zip(right.iter()).map(|(x,y)|x*y).collect()
+    left.iter().zip(right.iter()).map(|(x, y)| x * y).collect()
 }
 
 fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
