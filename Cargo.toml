@@ -1,7 +1,11 @@
 [package]
-name = "vec"
+name = "rvv-wroom"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 num-complex = "0.4.6"
+
+[lib]
+name = "rvvwroom"
+path = "src/lib.rs"

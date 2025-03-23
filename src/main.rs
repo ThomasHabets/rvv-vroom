@@ -1,9 +1,6 @@
+#![feature(riscv_target_feature)]
 type Complex = num_complex::Complex<f32>;
-
-fn mul_vec(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
-    left.iter().zip(right.iter()).map(|(x, y)| x * y).collect()
-}
-
+#[target_feature(enable = "v")]
 fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     use std::arch::asm;
     use std::mem::MaybeUninit;
@@ -37,5 +34,5 @@ fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 fn main() {
     let n = 1024;
     let left = vec![Complex::default(); n];
-    mul_vec_rvv(&left, &left);
+    unsafe { mul_vec_rvv(&left, &left) };
 }

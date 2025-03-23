@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "vec"
+name = "rvv-wroom"
 version = "0.1.0"
 dependencies = [
  "num-complex",
