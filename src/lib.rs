@@ -26,7 +26,7 @@ pub fn mul_fvec_v(left: &[f32], right: &[f32]) -> Vec<f32> {
 
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_fvec_rvv_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
+pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
     unsafe {
         let ret: Vec<f32> = mkbuf(left.len());
         asm!(
@@ -92,7 +92,7 @@ pub fn mul_fvec_rvv_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
 
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_fvec_rvv_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
+pub fn mul_fvec_asm_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
     unsafe {
         let ret: Vec<f32> = mkbuf(left.len());
         asm!(
@@ -147,7 +147,7 @@ pub fn mul_cvec_v(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_cvec_rvv_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
+pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         asm!(
@@ -199,7 +199,7 @@ pub fn mul_cvec_rvv_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
 
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_cvec_rvv_m2_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
+pub fn mul_cvec_asm_m2_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         asm!(
@@ -251,7 +251,7 @@ pub fn mul_cvec_rvv_m2_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> 
 
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_cvec_rvv_m4_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
+pub fn mul_cvec_asm_m4_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         asm!(
@@ -303,7 +303,7 @@ pub fn mul_cvec_rvv_m4_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> 
 
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_cvec_rvv_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
+pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         // TODO: probably buggy.
@@ -431,24 +431,23 @@ mod tests {
     fn test_mul_fvec() {
         let (left, right) = gen_ftest();
         let want = mul_fvec(&left.data, &right.data);
-        let got = unsafe { mul_fvec_rvv_m4(&left.data, &right.data) };
-        find_diff_f(&got, &want, "mul_fvec_rvv_m4");
-        assert_eq!(got, want, "mul_fvec_rvv_m4");
-        assert_eq!(
-            unsafe { mul_fvec_rvv_m8(&left.data, &right.data) },
-            want,
-            "mul_fvec_rvv_m8"
-        );
+        let t: &[(&str, unsafe fn(&[f32], &[f32]) -> Vec<f32>)] = &[
+            ("mul_fvec_asm_m4", mul_fvec_asm_m4),
+            ("mul_fvec_asm_m8", mul_fvec_asm_m8),
+        ];
+        for (name, f) in t {
+            let got = unsafe { f(&left.data, &right.data) };
+            find_diff_f(&got, &want, name);
+            assert_eq!(got, want, "failed {name}");
+        }
     }
     #[test]
     fn test_mul_cvec() {
         let (left, right) = gen_ctest();
-        eprintln!("left: {:p}", &left.data);
         let want = mul_cvec(&left.data, &right.data);
         let t: &[(&str, unsafe fn(&[Complex], &[Complex]) -> Vec<Complex>)] = &[
-            ("mul_cvec_rvv_m2_vl2", mul_cvec_rvv_m2_vl2),
-            ("mul_cvec_rvv_m4_vl2", mul_cvec_rvv_m4_vl2),
-            //("mul_cvec_rvv_m8_vl2", mul_cvec_rvv_m8_vl2),
+            ("mul_cvec_asm_m2_vl2", mul_cvec_asm_m2_vl2),
+            ("mul_cvec_asm_m4_vl2", mul_cvec_asm_m4_vl2),
         ];
         for (name, f) in t {
             let got = unsafe { f(&left.data, &right.data) };
