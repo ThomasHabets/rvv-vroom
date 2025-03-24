@@ -372,15 +372,21 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
             //
             // Interleaved seems to help.
             "vlse32.v v0, ({a_ptr}), t1",
+            "addi {a_ptr}, {a_ptr}, 4",
             "vlse32.v v8, ({b_ptr}), t1",
+            "addi {b_ptr}, {b_ptr}, 4",
+
             "vlse32.v v16, ({a_ptr}), t1",
+            "addi {a_ptr}, {a_ptr}, -4",
+
             "vfmul.vv v4, v0, v8",
             "vlse32.v v24, ({b_ptr}), t1",
+            "addi {b_ptr}, {b_ptr}, -4",
             "add {a_ptr}, {a_ptr}, t2",
 
             "vfmul.vv v12, v0, v24",
             "add {b_ptr}, {b_ptr}, t2",
-            "vfnmacc.vv v4, v16,v24",
+            "vfnmsac.vv v4, v16,v24",
             "vsse32.v v4, ({o_ptr}), t1",
 
             "vfmacc.vv v12, v8, v16",
@@ -499,6 +505,7 @@ mod tests {
         let t: &[(&str, unsafe fn(&[Complex], &[Complex]) -> Vec<Complex>)] = &[
             ("mul_cvec_asm_m2_segment", mul_cvec_asm_m2_segment),
             ("mul_cvec_asm_m4_segment", mul_cvec_asm_m4_segment),
+            ("mul_cvec_asm_m4_stride", mul_cvec_asm_m4_stride),
             ("mul_cvec_asm_m8_stride", mul_cvec_asm_m8_stride),
         ];
         for (name, f) in t {
