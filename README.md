@@ -6,6 +6,9 @@ inner loops.
 Currently requires nightly rust, because of the benchmark library, and the
 manual messing around with target features.
 
+Some more words about vector instructions are in [this blog
+post](https://blog.habets.se/2025/03/Exploring-RISC-V-vector-instructions.html).
+
 ## How to enable vector instructions
 
 It seems that LLVM doesn't know about the Ky X1 CPU, so you'll need to manually
@@ -44,6 +47,3 @@ Ok, there are easier ways of doing that, like:
 ```
 $ RUSTFLAGS="-Ctarget-cpu=native -Ctarget-feature=-v" cargo +nightly bench
 ```
-
-TODO:
-* link to blog post.
