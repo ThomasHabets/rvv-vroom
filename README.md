@@ -1,7 +1,10 @@
-## OrangePI RV2 findings
+# rvv-vroom
 
-* stride load appears to be much slower than regular load.
-* Why does vlseg2e32.v v0 not work in m8?
+The beginnings of a crate for manually tuned vector instruction based RISC-V
+inner loops.
+
+Currently requires nightly rust, because of the benchmark library, and the
+manual messing around with target features.
 
 ## How to enable vector instructions
 
