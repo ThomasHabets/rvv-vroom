@@ -4,6 +4,9 @@ use std::arch::asm;
 
 type Complex = num_complex::Complex<f32>;
 
+// Make a buf with uninitialized contents.
+//
+// It'll be filled by assembly code.
 unsafe fn mkbuf<T>(len: usize) -> Vec<T> {
     use std::mem::MaybeUninit;
     let mut ret: Vec<MaybeUninit<T>> = Vec::with_capacity(len);
@@ -13,17 +16,26 @@ unsafe fn mkbuf<T>(len: usize) -> Vec<T> {
     }
 }
 
+/// Multiply two float vectors, putting the result in a third.
+///
+/// Pure Rust code, for comparison.
 #[inline(never)]
 pub fn mul_fvec(left: &[f32], right: &[f32]) -> Vec<f32> {
     left.iter().zip(right.iter()).map(|(x, y)| x * y).collect()
 }
 
+/// Multiply two float vectors, putting the result in a third.
+///
+/// Pure Rust code, but with `v` extension force-enabled.
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_fvec_v(left: &[f32], right: &[f32]) -> Vec<f32> {
     left.iter().zip(right.iter()).map(|(x, y)| x * y).collect()
 }
 
+/// Multiply two float vectors, putting the result in a third.
+///
+/// Using vector instruction assembly and 4-register (M4) grouping.
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
@@ -90,6 +102,9 @@ pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
     }
 }
 
+/// Multiply two float vectors, putting the result in a third.
+///
+/// Using vector instruction assembly and 8-register (M8) grouping.
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_fvec_asm_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
@@ -134,41 +149,60 @@ pub fn mul_fvec_asm_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
     }
 }
 
+/// Multiply two complex vectors, putting the result in a third.
+///
+/// In pure Rust, for comparison.
 #[inline(never)]
 pub fn mul_cvec(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     left.iter().zip(right.iter()).map(|(x, y)| x * y).collect()
 }
 
+/// Multiply two complex vectors, putting the result in a third.
+///
+/// In pure Rust, but with vector instructions forced on.
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_v(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     left.iter().zip(right.iter()).map(|(x, y)| x * y).collect()
 }
 
+/// Multiply two complex vectors, putting the result in a third.
+///
+/// Using vector instruction assembly with 8-register (M8) grouping, reading
+/// strided.
+///
+/// This version does an extra memory load (hopefully from cache), due to
+/// running out of registers.
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
-        let ret: Vec<Complex> = mkbuf(left.len());
+        let mut ret: Vec<Complex> = mkbuf(left.len());
+        ret.iter_mut().for_each(|v| *v = Complex::new(0.0, 0.0));
         asm!(
             "li t1, 8",
             "1:",
             "vsetvli t0, {len}, e32, m8, ta, ma",
-            "add t2, t0, t0",
+            "slli t2, t0, 3", // t2 = byte size of loop.
+
             // (ac - bd) + (ad + bc)i
             "sub {len}, {len}, t0",
 
             // Load everything.
             "vlse32.v v0, ({a_ptr}), t1",
+            "addi {a_ptr}, {a_ptr}, 4",
             "vlse32.v v8, ({b_ptr}), t1",
+            "addi {b_ptr}, {b_ptr}, 4",
             "vlse32.v v16, ({a_ptr}), t1",
+            "addi {a_ptr}, {a_ptr}, -4",
             "vlse32.v v24, ({b_ptr}), t1",
+            "addi {b_ptr}, {b_ptr}, -4",
 
             // Calculate real.
             "vfmul.vv v0, v0, v8",
-            "vfnmacc.vv v0, v16,v24",
+            "vfnmsac.vv v0, v16, v24",
             "vsse32.v v0, ({o_ptr}), t1",
-            "add {o_ptr}, {o_ptr}, t0",
+            "addi {o_ptr}, {o_ptr}, 4",
 
             // We ran out of registers, so reload v0.
             // Turns out undoing the math is slower.
@@ -180,7 +214,8 @@ pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
             "vfmul.vv v0, v0, v24",
             "vfmacc.vv v0, v8, v16",
             "vsse32.v v0, ({o_ptr}), t1",
-            "add {o_ptr}, {o_ptr}, t0",
+            "addi {o_ptr}, {o_ptr}, -4",
+            "add {o_ptr}, {o_ptr}, t2",
 
             // Update pointers / counters.
             "add {a_ptr}, {a_ptr}, t2",
@@ -197,9 +232,13 @@ pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
     }
 }
 
+/// Multiply two complex vectors, putting the result in a third.
+///
+/// Using vector instruction assembly with 2-register (M2) grouping, reading
+/// segmented.
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_cvec_asm_m2_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
+pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         asm!(
@@ -249,9 +288,13 @@ pub fn mul_cvec_asm_m2_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> 
     }
 }
 
+/// Multiply two complex vectors, putting the result in a third.
+///
+/// Using vector instruction assembly with 4-register (M4) grouping, reading
+/// segmented.
 #[target_feature(enable = "v")]
 #[inline(never)]
-pub fn mul_cvec_asm_m4_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
+pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         asm!(
@@ -301,12 +344,15 @@ pub fn mul_cvec_asm_m4_vl2(left: &[Complex], right: &[Complex]) -> Vec<Complex> 
     }
 }
 
+/// Multiply two complex vectors, putting the result in a third.
+///
+/// Using vector instruction assembly with 4-register (M4) grouping, reading
+/// strided.
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
-        // TODO: probably buggy.
         asm!(
             "li t1, 8",  // Skip every other float.
             "1:",
@@ -355,6 +401,7 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
     }
 }
 
+// Wrapper to help create very aligned buffers.
 #[repr(align(1024))]
 pub struct BF32 {
     pub data: [f32; 1024],
@@ -364,6 +411,7 @@ pub struct BC32 {
     pub data: [Complex; 1024],
 }
 
+/// Generate two aligned f32 buffers.
 pub fn gen_ftest() -> (BF32, BF32) {
     let n = 1024;
     (
@@ -383,6 +431,8 @@ pub fn gen_ftest() -> (BF32, BF32) {
         },
     )
 }
+
+/// Generate two aligned complex buffers.
 pub fn gen_ctest() -> (BC32, BC32) {
     let n = 1024;
     (
@@ -402,6 +452,7 @@ pub fn gen_ctest() -> (BC32, BC32) {
         },
     )
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -446,21 +497,20 @@ mod tests {
         let (left, right) = gen_ctest();
         let want = mul_cvec(&left.data, &right.data);
         let t: &[(&str, unsafe fn(&[Complex], &[Complex]) -> Vec<Complex>)] = &[
-            ("mul_cvec_asm_m2_vl2", mul_cvec_asm_m2_vl2),
-            ("mul_cvec_asm_m4_vl2", mul_cvec_asm_m4_vl2),
+            ("mul_cvec_asm_m2_segment", mul_cvec_asm_m2_segment),
+            ("mul_cvec_asm_m4_segment", mul_cvec_asm_m4_segment),
+            ("mul_cvec_asm_m8_stride", mul_cvec_asm_m8_stride),
         ];
         for (name, f) in t {
             let got = unsafe { f(&left.data, &right.data) };
             (0..16).for_each(|n| {
                 println!(
-                    "{n}: {} {} => {}",
+                    "{n}: {} {} => {}   Got: {}",
                     left.data[n],
                     right.data[n],
-                    left.data[n] * right.data[n]
+                    left.data[n] * right.data[n],
+                    got[n],
                 );
-            });
-            (0..16).for_each(|n| {
-                println!("{n}: {}", got[n]);
             });
             find_diff_c(&got, &want, name);
         }
