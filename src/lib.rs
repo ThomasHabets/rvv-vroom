@@ -177,8 +177,7 @@ pub fn mul_cvec_v(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 #[inline(never)]
 pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
-        let mut ret: Vec<Complex> = mkbuf(left.len());
-        ret.iter_mut().for_each(|v| *v = Complex::new(0.0, 0.0));
+        let ret: Vec<Complex> = mkbuf(left.len());
         asm!(
             "li t1, 8",
             "1:",
