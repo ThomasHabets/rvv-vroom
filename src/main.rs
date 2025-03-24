@@ -1,5 +1,6 @@
 #![feature(riscv_target_feature)]
 type Complex = num_complex::Complex<f32>;
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     use std::arch::asm;
@@ -32,7 +33,10 @@ fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 }
 
 fn main() {
-    let n = 1024;
-    let left = vec![Complex::default(); n];
-    unsafe { mul_vec_rvv(&left, &left) };
+    #[cfg(target_arch = "riscv64")]
+    {
+        let n = 1024;
+        let left = vec![Complex::default(); n];
+        unsafe { mul_vec_rvv(&left, &left) };
+    }
 }

@@ -1,7 +1,12 @@
 [package]
 name = "rvv-vroom"
+description = "Hand tuned RISC-V vector instruction inner loops"
+authors = ["Thomas Habets <thomas@habets.se>"]
+readme = "README.md"
+repository = "https://github.com/ThomasHabets/rvv-vroom"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [dependencies]
 num-complex = "0.4.6"

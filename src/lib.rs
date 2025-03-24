@@ -27,6 +27,7 @@ pub fn mul_fvec(left: &[f32], right: &[f32]) -> Vec<f32> {
 /// Multiply two float vectors, putting the result in a third.
 ///
 /// Pure Rust code, but with `v` extension force-enabled.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_fvec_v(left: &[f32], right: &[f32]) -> Vec<f32> {
@@ -36,6 +37,7 @@ pub fn mul_fvec_v(left: &[f32], right: &[f32]) -> Vec<f32> {
 /// Multiply two float vectors, putting the result in a third.
 ///
 /// Using vector instruction assembly and 4-register (M4) grouping.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
@@ -105,6 +107,7 @@ pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
 /// Multiply two float vectors, putting the result in a third.
 ///
 /// Using vector instruction assembly and 8-register (M8) grouping.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_fvec_asm_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
@@ -160,6 +163,7 @@ pub fn mul_cvec(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 /// Multiply two complex vectors, putting the result in a third.
 ///
 /// In pure Rust, but with vector instructions forced on.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_v(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
@@ -173,6 +177,7 @@ pub fn mul_cvec_v(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 ///
 /// This version does an extra memory load (hopefully from cache), due to
 /// running out of registers.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
@@ -235,6 +240,7 @@ pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
 ///
 /// Using vector instruction assembly with 2-register (M2) grouping, reading
 /// segmented.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
@@ -291,6 +297,7 @@ pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
 ///
 /// Using vector instruction assembly with 4-register (M4) grouping, reading
 /// segmented.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
@@ -346,6 +353,7 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
 ///
 /// Using vector instruction assembly with 4-register (M4) grouping, reading
 /// strided.
+#[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
 pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
