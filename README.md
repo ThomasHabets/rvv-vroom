@@ -36,5 +36,11 @@ test bench_mul_fvec_rust           ... bench:       4,095.23 ns/iter (+/- 15.66)
 test bench_mul_fvec_rust_v         ... bench:       1,083.80 ns/iter (+/- 9.79)
 ```
 
+Ok, there are easier ways of doing that, like:
+
+```
+$ RUSTFLAGS="-Ctarget-cpu=native -Ctarget-feature=-v" cargo +nightly bench
+```
+
 TODO:
 * link to blog post.
