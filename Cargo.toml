@@ -12,5 +12,5 @@ license = "MIT"
 num-complex = "0.4.6"
 
 [lib]
-name = "rvv-vroom"
+name = "rvv_vroom"
 path = "src/lib.rs"
