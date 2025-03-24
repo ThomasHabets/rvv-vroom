@@ -329,7 +329,6 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
             // ad + bc
             "vfmacc.vv v20, v4, v8",
 
-            //"vs2r.v v0, ({o_ptr})",
             "vsseg2e32.v v16, ({o_ptr})",
             "add {o_ptr}, {o_ptr}, t2",
 
