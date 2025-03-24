@@ -21,7 +21,7 @@ detected or because you enabled it per above, but you still want to compare
 vector and non-vector for pure Rust code.
 
 ```
-cargo bench --target  target-riscv64-no-vector.json -Zbuild-std
+cargo +nightly bench --target  target-riscv64-no-vector.json -Zbuild-std
 ```
 
 TODO:
