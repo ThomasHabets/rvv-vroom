@@ -9,6 +9,24 @@ use rvv_vroom::*;
 use test::Bencher;
 
 #[bench]
+fn bench_mul_sum_cvec_rust(b: &mut Bencher) {
+    let (left, right) = gen_ctest();
+    b.iter(|| mul_sum_vec(&left.data, &right.data));
+}
+
+#[bench]
+fn bench_mul_sum_cvec_rust_v(b: &mut Bencher) {
+    let (left, right) = gen_ctest();
+    b.iter(|| unsafe { mul_sum_vec_v(&left.data, &right.data) });
+}
+
+#[bench]
+fn bench_mul_sum_cvec_asm_m4(b: &mut Bencher) {
+    let (left, right) = gen_ctest();
+    b.iter(|| unsafe { mul_sum_cvec_asm_m4(&left.data, &right.data) });
+}
+
+#[bench]
 fn bench_mul_cvec_rust(b: &mut Bencher) {
     let (left, right) = gen_ctest();
     b.iter(|| mul_cvec(&left.data, &right.data));

@@ -16,6 +16,91 @@ unsafe fn mkbuf<T>(len: usize) -> Vec<T> {
     }
 }
 
+/// Multiply two vectors, and sum the results.
+#[inline(never)]
+pub fn mul_sum_vec(left: &[Complex], right: &[Complex]) -> Complex {
+    left.iter().zip(right.iter()).map(|(x, y)| x * y).sum()
+}
+
+/// Multiply two vectors, and sum the results.
+#[cfg(target_arch = "riscv64")]
+#[target_feature(enable = "v")]
+#[inline(never)]
+pub fn mul_sum_vec_v(left: &[Complex], right: &[Complex]) -> Complex {
+    left.iter().zip(right.iter()).map(|(x, y)| x * y).sum()
+}
+
+/// Multiply two complex vectors, summing up the results.
+#[cfg(target_arch = "riscv64")]
+#[target_feature(enable = "v")]
+#[inline(never)]
+pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
+    unsafe {
+        let mut real;
+        let mut imag;
+        asm!(
+            // Zero out registers.
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vfmv.v.f v24, {fzero}",
+            "vfmv.v.f v28, {fzero}",
+
+            "1:",
+
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            // (ac - bd) + (ad + bc)i
+
+            // v0:  left.real    a
+            // v4:  left.imag    b
+            // v8:  right.real   c
+            // v12: right.imag   d
+            // v16: tmp.real
+            // v20: tmp.imag
+            // v24: acc.real
+            // v28: acc.imag
+            "slli t1,t0,3", // bytes per loop.
+
+            "sub {len}, {len}, t0",
+
+            // Load
+            "vlseg2e32.v v0, ({a_ptr})",
+            "vlseg2e32.v v8, ({b_ptr})",
+            "add {a_ptr}, {a_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, t1",
+
+            // ac
+            "vfmul.vv v16, v0, v8",
+
+            // ad
+            "vfmul.vv v20, v0, v12",
+
+            // ac - bd
+            "vfnmsac.vv v16, v4, v12",
+
+            // ad + bc
+            "vfmacc.vv v20, v4, v8",
+
+            // TODO: can we batch this?
+            "vadd.vv v24, v24, v16",
+            "vadd.vv v28, v28, v20",
+
+            "bnez {len}, 1b",
+
+            "vfmv.v.f v0, {fzero}",
+            "vfredusum.vs v24, v24, v0",
+            "vfredusum.vs v28, v28, v0",
+            "vfmv.f.s {real}, v24",
+            "vfmv.f.s {imag}, v28",
+            len = inout(reg) left.len() => _,
+            a_ptr = inout(reg) left.as_ptr() => _,
+            b_ptr = inout(reg) right.as_ptr() => _,
+            real = inout(freg) 0.0f32 => real,
+            imag = inout(freg) 0.0f32 => imag,
+            fzero = inout(freg) 0.0f32 => _,
+        );
+        Complex::new(real, imag)
+    }
+}
+
 /// Multiply two float vectors, putting the result in a third.
 ///
 /// Pure Rust code, for comparison.
@@ -526,6 +611,17 @@ mod tests {
                 );
             });
             find_diff_c(&got, &want, name);
+        }
+    }
+    #[test]
+    fn test_mul_sum_cvec() {
+        let (left, right) = gen_ctest();
+        let want = mul_sum_vec(&left.data, &right.data);
+        let t: &[(&str, unsafe fn(&[Complex], &[Complex]) -> Complex)] =
+            &[("mul_sum_cvec_asm_m4", mul_sum_cvec_asm_m4)];
+        for (name, f) in t {
+            let got = unsafe { f(&left.data, &right.data) };
+            assert_eq!(got, want, "{name}");
         }
     }
 }
