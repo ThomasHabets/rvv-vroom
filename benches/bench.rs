@@ -1,10 +1,10 @@
 #![feature(test)]
 
-extern crate rvvwroom;
+extern crate rvv_vroom;
 extern crate test;
 
 //use vec::{mul_fvec, mul_fvec_asm_m4, mul_fvec_rvv_m8};
-use rvvwroom::*;
+use rvv_vroom::*;
 
 use test::Bencher;
 
