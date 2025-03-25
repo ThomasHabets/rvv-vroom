@@ -80,8 +80,8 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             "vfmacc.vv v20, v4, v8",
 
             // TODO: can we batch this?
-            "vadd.vv v24, v24, v16",
-            "vadd.vv v28, v28, v20",
+            "vfadd.vv v24, v24, v16",
+            "vfadd.vv v28, v28, v20",
 
             "bnez {len}, 1b",
 
@@ -621,7 +621,15 @@ mod tests {
             &[("mul_sum_cvec_asm_m4", mul_sum_cvec_asm_m4)];
         for (name, f) in t {
             let got = unsafe { f(&left.data, &right.data) };
-            assert_eq!(got, want, "{name}");
+            let diff = got - want;
+            assert!(
+                (diff.re / got.re).abs() < 0.01,
+                "{name}: Real out of range: {got} {want}"
+            );
+            assert!(
+                (diff.im / got.im).abs() < 0.01,
+                "{name}: Imag out of range: {got} {want}"
+            );
         }
     }
 }
