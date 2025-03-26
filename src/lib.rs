@@ -59,8 +59,6 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             // v28: acc.imag
             "slli t1,t0,3", // bytes per loop.
 
-            "sub {len}, {len}, t0",
-
             // Load
             "vlseg2e32.v v0, ({a_ptr})",
             "add {a_ptr}, {a_ptr}, t1",
@@ -79,11 +77,14 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             // ad + bc
             "vfmacc.vv v20, v4, v8",
 
-            // TODO: can we batch this?
+            "vsetvli zero,{len},e32,m8,ta,ma",
             "vfadd.vv v24, v24, v16",
-            "vfadd.vv v28, v28, v20",
+            "sub {len}, {len}, t0",
 
             "bnez {len}, 1b",
+
+            "li t0, 256",
+            "vsetvli t0,t0,e32,m4,ta,ma",
 
             "vfmv.v.f v0, {fzero}",
             "vfredusum.vs v24, v24, v0",
