@@ -57,6 +57,10 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             // v20: tmp.imag
             // v24: acc.real
             // v28: acc.imag
+            //
+            // I tried combining ac and bd multiplications by going into m8
+            // mode, but (presumably because of the several vsetvli mode switch
+            // overhead) that made it slower on the Ky-X1.
             "slli t1,t0,3", // bytes per loop.
 
             // Load
@@ -77,6 +81,8 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             // ad + bc
             "vfmacc.vv v20, v4, v8",
 
+            // There's a more than zero risk that len is not set correctly,
+            // here, for inputs that are not even multiples.
             "vsetvli zero,{len},e32,m8,ta,ma",
             "vfadd.vv v24, v24, v16",
             "sub {len}, {len}, t0",
