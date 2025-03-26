@@ -63,8 +63,8 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
 
             // Load
             "vlseg2e32.v v0, ({a_ptr})",
-            "vlseg2e32.v v8, ({b_ptr})",
             "add {a_ptr}, {a_ptr}, t1",
+            "vlseg2e32.v v8, ({b_ptr})",
             "add {b_ptr}, {b_ptr}, t1",
 
             // ac
