@@ -40,13 +40,13 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
         let mut imag;
         asm!(
             // Zero out registers.
-            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
             "vfmv.v.f v24, {fzero}",
             "vfmv.v.f v28, {fzero}",
 
             "1:",
 
-            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
             // (ac - bd) + (ad + bc)i
 
             // v0:  left.real    a
@@ -61,13 +61,13 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             // I tried combining ac and bd multiplications by going into m8
             // mode, but (presumably because of the several vsetvli mode switch
             // overhead) that made it slower on the Ky-X1.
-            "slli t1,t0,3", // bytes per loop.
+            "slli {bytes},{elements},3", // bytes per loop.
 
             // Load
             "vlseg2e32.v v0, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {bytes}",
             "vlseg2e32.v v8, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {bytes}",
 
             // ac
             "vfmul.vv v16, v0, v8",
@@ -85,24 +85,27 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             // here, for inputs that are not even multiples.
             "vsetvli zero,{len},e32,m8,ta,ma",
             "vfadd.vv v24, v24, v16",
-            "sub {len}, {len}, t0",
+            "sub {len}, {len}, {elements}",
 
             "bnez {len}, 1b",
 
-            "li t0, 256",
-            "vsetvli t0,t0,e32,m4,ta,ma",
+            "li {elements}, 256",
+            "vsetvli {elements},{elements},e32,m4,ta,ma",
 
             "vfmv.v.f v0, {fzero}",
             "vfredusum.vs v24, v24, v0",
             "vfredusum.vs v28, v28, v0",
             "vfmv.f.s {real}, v24",
             "vfmv.f.s {imag}, v28",
-            len = inout(reg) left.len() => _,
-            a_ptr = inout(reg) left.as_ptr() => _,
-            b_ptr = inout(reg) right.as_ptr() => _,
-            real = inout(freg) 0.0f32 => real,
-            imag = inout(freg) 0.0f32 => imag,
-            fzero = inout(freg) 0.0f32 => _,
+            len = in(reg) left.len(),
+            a_ptr = in(reg) left.as_ptr(),
+            b_ptr = in(reg) right.as_ptr(),
+            real = lateout(freg) real,
+            imag = lateout(freg) imag,
+            fzero = in(freg) 0.0f32,
+            elements = out(reg) _,
+            bytes = out(reg) _,
+            options(readonly, nostack),
         );
         Complex::new(real, imag)
     }
