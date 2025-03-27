@@ -4,6 +4,24 @@ use std::arch::asm;
 
 type Complex = num_complex::Complex<f32>;
 
+// Wrap the asm macro, clobbering all vector registers.
+macro_rules! rvv_asm {
+    ($($instr:tt)+) => {
+        asm!(
+            $($instr)+
+            // Explicit clobber of all v0-v31
+            out("v0") _, out("v1") _, out("v2") _, out("v3") _,
+            out("v4") _, out("v5") _, out("v6") _, out("v7") _,
+            out("v8") _, out("v9") _, out("v10") _, out("v11") _,
+            out("v12") _, out("v13") _, out("v14") _, out("v15") _,
+            out("v16") _, out("v17") _, out("v18") _, out("v19") _,
+            out("v20") _, out("v21") _, out("v22") _, out("v23") _,
+            out("v24") _, out("v25") _, out("v26") _, out("v27") _,
+            out("v28") _, out("v29") _, out("v30") _, out("v31") _,
+        )
+    };
+}
+
 // Make a buf with uninitialized contents.
 //
 // It'll be filled by assembly code.
@@ -38,7 +56,7 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
     unsafe {
         let mut real;
         let mut imag;
-        asm!(
+        rvv_asm!(
             // Zero out registers.
             "vsetvli {elements}, {len}, e32, m4, ta, ma",
             "vfmv.v.f v24, {fzero}",
@@ -97,9 +115,9 @@ pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
             "vfredusum.vs v28, v28, v0",
             "vfmv.f.s {real}, v24",
             "vfmv.f.s {imag}, v28",
-            len = in(reg) left.len(),
-            a_ptr = in(reg) left.as_ptr(),
-            b_ptr = in(reg) right.as_ptr(),
+            len = inout(reg) left.len() => _,
+            a_ptr = inout(reg) left.as_ptr() => _,
+            b_ptr = inout(reg) right.as_ptr() => _,
             real = lateout(freg) real,
             imag = lateout(freg) imag,
             fzero = in(freg) 0.0f32,
