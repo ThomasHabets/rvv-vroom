@@ -156,62 +156,63 @@ pub fn mul_fvec_v(left: &[f32], right: &[f32]) -> Vec<f32> {
 pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
     unsafe {
         let ret: Vec<f32> = mkbuf(left.len());
-        asm!(
-        "1:",
-        "vsetvli t0, {len}, e32, m4, ta, ma",
-        // Loop unrolled 4x.
-        // v0,v4,v8,v12 = left, and output.
-        // v16,v20,v24,v28 = right.
-        "slli t2,t0,2", // entries per loop.
-        "slli t1,t0,2", // bytes per register.
+        rvv_asm!(
+            "1:",
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            // Loop unrolled 4x.
+            // v0,v4,v8,v12 = left, and output.
+            // v16,v20,v24,v28 = right.
+            "slli t2,t0,2", // entries per loop.
+            "slli t1,t0,2", // bytes per register.
 
-        "sub {len}, {len}, t2",
+            "sub {len}, {len}, t2",
 
-        // Load
-        "vle32.v v0, ({a_ptr})",
-        "add {a_ptr}, {a_ptr}, t1",
-        "vle32.v v16, ({b_ptr})",
-        "add {b_ptr}, {b_ptr}, t1",
+            // Load
+            "vle32.v v0, ({a_ptr})",
+            "add {a_ptr}, {a_ptr}, t1",
+            "vle32.v v16, ({b_ptr})",
+            "add {b_ptr}, {b_ptr}, t1",
 
-        "vle32.v v4, ({a_ptr})",
-        "add {a_ptr}, {a_ptr}, t1",
-        "vle32.v v20, ({b_ptr})",
-        "add {b_ptr}, {b_ptr}, t1",
+            "vle32.v v4, ({a_ptr})",
+            "add {a_ptr}, {a_ptr}, t1",
+            "vle32.v v20, ({b_ptr})",
+            "add {b_ptr}, {b_ptr}, t1",
 
-        "vle32.v v8, ({a_ptr})",
-        "add {a_ptr}, {a_ptr}, t1",
-        "vle32.v v24, ({b_ptr})",
-        "add {b_ptr}, {b_ptr}, t1",
+            "vle32.v v8, ({a_ptr})",
+            "add {a_ptr}, {a_ptr}, t1",
+            "vle32.v v24, ({b_ptr})",
+            "add {b_ptr}, {b_ptr}, t1",
 
-        "vle32.v v12, ({a_ptr})",
-        "add {a_ptr}, {a_ptr}, t1",
-        "vle32.v v28, ({b_ptr})",
-        "add {b_ptr}, {b_ptr}, t1",
+            "vle32.v v12, ({a_ptr})",
+            "add {a_ptr}, {a_ptr}, t1",
+            "vle32.v v28, ({b_ptr})",
+            "add {b_ptr}, {b_ptr}, t1",
 
-        // Multiply.
-        "vfmul.vv v0, v0, v16",
-        "vfmul.vv v4, v4, v20",
-        "vfmul.vv v8, v8, v24",
-        "vfmul.vv v12, v12, v28",
+            // Multiply.
+            "vfmul.vv v0, v0, v16",
+            "vfmul.vv v4, v4, v20",
+            "vfmul.vv v8, v8, v24",
+            "vfmul.vv v12, v12, v28",
 
-        // Store.
-        "vse32.v v0, ({o_ptr})",
-        "add {o_ptr}, {o_ptr}, t1",
+            // Store.
+            "vse32.v v0, ({o_ptr})",
+            "add {o_ptr}, {o_ptr}, t1",
 
-        "vse32.v v4, ({o_ptr})",
-        "add {o_ptr}, {o_ptr}, t1",
+            "vse32.v v4, ({o_ptr})",
+            "add {o_ptr}, {o_ptr}, t1",
 
-        "vse32.v v8, ({o_ptr})",
-        "add {o_ptr}, {o_ptr}, t1",
+            "vse32.v v8, ({o_ptr})",
+            "add {o_ptr}, {o_ptr}, t1",
 
-        "vse32.v v12, ({o_ptr})",
-        "add {o_ptr}, {o_ptr}, t1",
+            "vse32.v v12, ({o_ptr})",
+            "add {o_ptr}, {o_ptr}, t1",
 
-        "bnez {len}, 1b",
-        len = inout(reg) left.len() => _,
-        a_ptr = inout(reg) left.as_ptr() => _,
-        b_ptr = inout(reg) right.as_ptr() => _,
-        o_ptr = inout(reg) ret.as_ptr() => _,
+            "bnez {len}, 1b",
+            len = inout(reg) left.len() => _,
+            a_ptr = inout(reg) left.as_ptr() => _,
+            b_ptr = inout(reg) right.as_ptr() => _,
+            o_ptr = inout(reg) ret.as_ptr() => _,
+            options(nostack),
         );
         ret
     }
@@ -226,40 +227,44 @@ pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
 pub fn mul_fvec_asm_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
     unsafe {
         let ret: Vec<f32> = mkbuf(left.len());
-        asm!(
+        rvv_asm!(
             "1:",
-            "vsetvli t0, {len}, e32, m8, ta, ma",
-            "slli t1,t0,2", // t1 = bytes per register.
+            "vsetvli {elements}, {len}, e32, m8, ta, ma",
+            "slli {halfloop},{elements},2", // t1 = bytes per register.
             // Unrolled by 2.
-            "slli t2,t0,1", // t2 = entries per loop.
-                            //
-            "sub {len}, {len}, t2",
+            "slli {fullloop},{elements},1", // t2 = entries per loop.
+
+            "sub {len}, {len}, {fullloop}",
 
             "vle32.v v0, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {halfloop}",
             "vle32.v v8, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {halfloop}",
 
             "vle32.v v16, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {halfloop}",
 
             "vfmul.vv v0, v0, v8",
 
             "vle32.v v24, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {halfloop}",
 
             "vfmul.vv v16, v16, v24",
 
             "vse32.v v0, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t1",
+            "add {o_ptr}, {o_ptr}, {halfloop}",
 
             "vse32.v v16, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t1",
+            "add {o_ptr}, {o_ptr}, {halfloop}",
             "bnez {len}, 1b",
             len = inout(reg) left.len() => _,
+            elements = out(reg) _,
+            halfloop = out(reg) _,
+            fullloop = out(reg) _,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
+            options(nostack),
         );
         ret
     }
@@ -296,14 +301,14 @@ pub fn mul_cvec_v(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
-        asm!(
+        rvv_asm!(
             "li t1, 8",
             "1:",
-            "vsetvli t0, {len}, e32, m8, ta, ma",
-            "slli t2, t0, 3", // t2 = byte size of loop.
+            "vsetvli {elements}, {len}, e32, m8, ta, ma",
+            "slli t2, {elements}, 3", // t2 = byte size of loop.
 
             // (ac - bd) + (ad + bc)i
-            "sub {len}, {len}, t0",
+            "sub {len}, {len}, {elements}",
 
             // Load everything.
             "vlse32.v v0, ({a_ptr}), t1",
@@ -340,10 +345,12 @@ pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
             "bnez {len}, 1b",
             // "vfredosum.vs ft0, v0, ft0",
             len = inout(reg) left.len() => _,
+            elements = out(reg) _,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
             //x = inout(reg)
+            options(nostack),
         );
         ret
     }
@@ -359,7 +366,7 @@ pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
 pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
-        asm!(
+        rvv_asm!(
             "1:",
             "vsetvli t0, {len}, e32, m2, ta, ma",
             "slli t2, t0, 3", // t2 = byte size of loop.
@@ -401,6 +408,7 @@ pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
+            options(nostack),
         );
         ret
     }
@@ -416,7 +424,7 @@ pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
 pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
-        asm!(
+        rvv_asm!(
             "1:",
             "vsetvli t0, {len}, e32, m4, ta, ma",
             "slli t2, t0, 3", // t2 = byte size of loop.
@@ -457,6 +465,7 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
+            options(nostack),
         );
         ret
     }
@@ -472,7 +481,7 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
 pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
-        asm!(
+        rvv_asm!(
             "li t1, 8",  // Skip every other float.
             "1:",
             "vsetvli t0, {len}, e32, m4, ta, ma",
@@ -521,6 +530,7 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
             //x = inout(reg)
+            options(nostack),
         );
         ret
     }
