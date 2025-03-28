@@ -158,35 +158,35 @@ pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
         let ret: Vec<f32> = mkbuf(left.len());
         rvv_asm!(
             "1:",
-            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
             // Loop unrolled 4x.
             // v0,v4,v8,v12 = left, and output.
             // v16,v20,v24,v28 = right.
-            "slli t2,t0,2", // entries per loop.
-            "slli t1,t0,2", // bytes per register.
+            "slli {perloop},{elements},2", // entries per loop.
+            "slli {bytes},{elements},2", // bytes per register.
 
-            "sub {len}, {len}, t2",
+            "sub {len}, {len}, {perloop}",
 
             // Load
             "vle32.v v0, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {bytes}",
             "vle32.v v16, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {bytes}",
 
             "vle32.v v4, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {bytes}",
             "vle32.v v20, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {bytes}",
 
             "vle32.v v8, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {bytes}",
             "vle32.v v24, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {bytes}",
 
             "vle32.v v12, ({a_ptr})",
-            "add {a_ptr}, {a_ptr}, t1",
+            "add {a_ptr}, {a_ptr}, {bytes}",
             "vle32.v v28, ({b_ptr})",
-            "add {b_ptr}, {b_ptr}, t1",
+            "add {b_ptr}, {b_ptr}, {bytes}",
 
             // Multiply.
             "vfmul.vv v0, v0, v16",
@@ -196,19 +196,22 @@ pub fn mul_fvec_asm_m4(left: &[f32], right: &[f32]) -> Vec<f32> {
 
             // Store.
             "vse32.v v0, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t1",
+            "add {o_ptr}, {o_ptr}, {bytes}",
 
             "vse32.v v4, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t1",
+            "add {o_ptr}, {o_ptr}, {bytes}",
 
             "vse32.v v8, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t1",
+            "add {o_ptr}, {o_ptr}, {bytes}",
 
             "vse32.v v12, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t1",
+            "add {o_ptr}, {o_ptr}, {bytes}",
 
             "bnez {len}, 1b",
             len = inout(reg) left.len() => _,
+            elements = out(reg) _,
+            bytes = out(reg) _,
+            perloop = out(reg) _,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
@@ -230,9 +233,9 @@ pub fn mul_fvec_asm_m8(left: &[f32], right: &[f32]) -> Vec<f32> {
         rvv_asm!(
             "1:",
             "vsetvli {elements}, {len}, e32, m8, ta, ma",
-            "slli {halfloop},{elements},2", // t1 = bytes per register.
+            "slli {halfloop},{elements},2", // bytes per register.
             // Unrolled by 2.
-            "slli {fullloop},{elements},1", // t2 = entries per loop.
+            "slli {fullloop},{elements},1", // entries per loop.
 
             "sub {len}, {len}, {fullloop}",
 
@@ -302,50 +305,51 @@ pub fn mul_cvec_asm_m8_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         rvv_asm!(
-            "li t1, 8",
             "1:",
             "vsetvli {elements}, {len}, e32, m8, ta, ma",
-            "slli t2, {elements}, 3", // t2 = byte size of loop.
+            "slli {bytes}, {elements}, 3", // byte size of loop.
 
             // (ac - bd) + (ad + bc)i
             "sub {len}, {len}, {elements}",
 
             // Load everything.
-            "vlse32.v v0, ({a_ptr}), t1",
+            "vlse32.v v0, ({a_ptr}), {csize}",
             "addi {a_ptr}, {a_ptr}, 4",
-            "vlse32.v v8, ({b_ptr}), t1",
+            "vlse32.v v8, ({b_ptr}), {csize}",
             "addi {b_ptr}, {b_ptr}, 4",
-            "vlse32.v v16, ({a_ptr}), t1",
+            "vlse32.v v16, ({a_ptr}), {csize}",
             "addi {a_ptr}, {a_ptr}, -4",
-            "vlse32.v v24, ({b_ptr}), t1",
+            "vlse32.v v24, ({b_ptr}), {csize}",
             "addi {b_ptr}, {b_ptr}, -4",
 
             // Calculate real.
             "vfmul.vv v0, v0, v8",
             "vfnmsac.vv v0, v16, v24",
-            "vsse32.v v0, ({o_ptr}), t1",
+            "vsse32.v v0, ({o_ptr}), {csize}",
             "addi {o_ptr}, {o_ptr}, 4",
 
             // We ran out of registers, so reload v0.
             // Turns out undoing the math is slower.
-            "vlse32.v v0, ({a_ptr}), t1",
+            "vlse32.v v0, ({a_ptr}), {csize}",
             //"vfmacc.vv v0, v16, v24",
             //"vfdiv.vv v0, v0, v8",
 
             // Calculate complex.
             "vfmul.vv v0, v0, v24",
             "vfmacc.vv v0, v8, v16",
-            "vsse32.v v0, ({o_ptr}), t1",
+            "vsse32.v v0, ({o_ptr}), {csize}",
             "addi {o_ptr}, {o_ptr}, -4",
-            "add {o_ptr}, {o_ptr}, t2",
+            "add {o_ptr}, {o_ptr}, {bytes}",
 
             // Update pointers / counters.
-            "add {a_ptr}, {a_ptr}, t2",
-            "add {b_ptr}, {b_ptr}, t2",
+            "add {a_ptr}, {a_ptr}, {bytes}",
+            "add {b_ptr}, {b_ptr}, {bytes}",
             "bnez {len}, 1b",
             // "vfredosum.vs ft0, v0, ft0",
             len = inout(reg) left.len() => _,
             elements = out(reg) _,
+            bytes = out(reg) _,
+            csize = in(reg) 8,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
@@ -368,9 +372,9 @@ pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
         let ret: Vec<Complex> = mkbuf(left.len());
         rvv_asm!(
             "1:",
-            "vsetvli t0, {len}, e32, m2, ta, ma",
-            "slli t2, t0, 3", // t2 = byte size of loop.
-            "sub {len}, {len}, t0",
+            "vsetvli {elements}, {len}, e32, m2, ta, ma",
+            "slli {loopbytes}, {elements}, 3",
+            "sub {len}, {len}, {elements}",
             // (ac - bd) + (ad + bc)i
 
             // v0:  left.real    a
@@ -384,8 +388,8 @@ pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
             "vlseg2e32.v v0, ({a_ptr})",
             "vlseg2e32.v v8, ({b_ptr})",
 
-            "add {a_ptr}, {a_ptr}, t2",
-            "add {b_ptr}, {b_ptr}, t2",
+            "add {a_ptr}, {a_ptr}, {loopbytes}",
+            "add {b_ptr}, {b_ptr}, {loopbytes}",
 
             // ac
             "vfmul.vv v16, v0, v8",
@@ -401,10 +405,12 @@ pub fn mul_cvec_asm_m2_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
 
             //"vs2r.v v0, ({o_ptr})",
             "vsseg2e32.v v16, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t2",
+            "add {o_ptr}, {o_ptr}, {loopbytes}",
 
             "bnez {len}, 1b",
             len = inout(reg) left.len() => _,
+            elements = out(reg) _,
+            loopbytes = out(reg) _,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
@@ -426,9 +432,9 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
         let ret: Vec<Complex> = mkbuf(left.len());
         rvv_asm!(
             "1:",
-            "vsetvli t0, {len}, e32, m4, ta, ma",
-            "slli t2, t0, 3", // t2 = byte size of loop.
-            "sub {len}, {len}, t0",
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
+            "slli {loopbytes}, {elements}, 3",
+            "sub {len}, {len}, {elements}",
             // (ac - bd) + (ad + bc)i
 
             // v0:  left.real    a
@@ -442,8 +448,8 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
             "vlseg2e32.v v0, ({a_ptr})",
             "vlseg2e32.v v8, ({b_ptr})",
 
-            "add {a_ptr}, {a_ptr}, t2",
-            "add {b_ptr}, {b_ptr}, t2",
+            "add {a_ptr}, {a_ptr}, {loopbytes}",
+            "add {b_ptr}, {b_ptr}, {loopbytes}",
 
             // ac
             "vfmul.vv v16, v0, v8",
@@ -458,10 +464,12 @@ pub fn mul_cvec_asm_m4_segment(left: &[Complex], right: &[Complex]) -> Vec<Compl
             "vfmacc.vv v20, v4, v8",
 
             "vsseg2e32.v v16, ({o_ptr})",
-            "add {o_ptr}, {o_ptr}, t2",
+            "add {o_ptr}, {o_ptr}, {loopbytes}",
 
             "bnez {len}, 1b",
             len = inout(reg) left.len() => _,
+            elements = out(reg) _,
+            loopbytes = out(reg) _,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
@@ -482,11 +490,10 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
     unsafe {
         let ret: Vec<Complex> = mkbuf(left.len());
         rvv_asm!(
-            "li t1, 8",  // Skip every other float.
             "1:",
-            "vsetvli t0, {len}, e32, m4, ta, ma",
-            "slli t2, t0, 3", // byte size of loop.
-            "sub {len}, {len}, t0",
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
+            "slli {loopbytes}, {elements}, 3", // byte size of loop.
+            "sub {len}, {len}, {elements}",
             // t4 is o_ptr plus im offset.
             "addi t4, {o_ptr}, 4",
             // (ac - bd) + (ad + bc)i
@@ -499,33 +506,36 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
             // v12: output.imag
             //
             // Interleaved seems to help.
-            "vlse32.v v0, ({a_ptr}), t1",
+            "vlse32.v v0, ({a_ptr}), {csize}",
             "addi {a_ptr}, {a_ptr}, 4",
-            "vlse32.v v8, ({b_ptr}), t1",
+            "vlse32.v v8, ({b_ptr}), {csize}",
             "addi {b_ptr}, {b_ptr}, 4",
 
-            "vlse32.v v16, ({a_ptr}), t1",
+            "vlse32.v v16, ({a_ptr}), {csize}",
             "addi {a_ptr}, {a_ptr}, -4",
 
             "vfmul.vv v4, v0, v8",
-            "vlse32.v v24, ({b_ptr}), t1",
+            "vlse32.v v24, ({b_ptr}), {csize}",
             "addi {b_ptr}, {b_ptr}, -4",
-            "add {a_ptr}, {a_ptr}, t2",
+            "add {a_ptr}, {a_ptr}, {loopbytes}",
 
             "vfmul.vv v12, v0, v24",
-            "add {b_ptr}, {b_ptr}, t2",
+            "add {b_ptr}, {b_ptr}, {loopbytes}",
             "vfnmsac.vv v4, v16,v24",
-            "vsse32.v v4, ({o_ptr}), t1",
+            "vsse32.v v4, ({o_ptr}), {csize}",
 
             "vfmacc.vv v12, v8, v16",
-            "vsse32.v v12, (t4), t1",
+            "vsse32.v v12, (t4), {csize}",
 
-            "add {o_ptr}, {o_ptr}, t2",
+            "add {o_ptr}, {o_ptr}, {loopbytes}",
 
             // Update pointers / counters.
             "bnez {len}, 1b",
             // "vfredosum.vs ft0, v0, ft0",
             len = inout(reg) left.len() => _,
+            elements = out(reg) _,
+            loopbytes = out(reg) _,
+            csize = in(reg) 8,
             a_ptr = inout(reg) left.as_ptr() => _,
             b_ptr = inout(reg) right.as_ptr() => _,
             o_ptr = inout(reg) ret.as_ptr() => _,
