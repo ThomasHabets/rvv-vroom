@@ -52,6 +52,87 @@ pub fn mul_sum_vec_v(left: &[Complex], right: &[Complex]) -> Complex {
 #[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 #[inline(never)]
+pub fn mul_sum_cvec_m4(left: &[Complex], right: &[Complex]) -> Complex {
+    unsafe {
+        let mut real;
+        let mut imag;
+        rvv_asm!(
+            // Zero out registers.
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
+            "vfmv.v.f v24, {fzero}",
+            "vfmv.v.f v28, {fzero}",
+
+            "1:",
+
+            "vsetvli {elements}, {len}, e32, m4, ta, ma",
+            // (ac - bd) + (ad + bc)i
+
+            // v0:  left.real    a
+            // v4:  left.imag    b
+            // v8:  right.real   c
+            // v12: right.imag   d
+            // v16: tmp.real
+            // v20: tmp.imag
+            // v24: acc.real
+            // v28: acc.imag
+            //
+            // I tried combining ac and bd multiplications by going into m8
+            // mode, but (presumably because of the several vsetvli mode switch
+            // overhead) that made it slower on the Ky-X1.
+            "slli {bytes},{elements},3", // bytes per loop.
+
+            // Load
+            "vlseg2e32.v v0, ({a_ptr})",
+            "add {a_ptr}, {a_ptr}, {bytes}",
+            "vlseg2e32.v v8, ({b_ptr})",
+            "add {b_ptr}, {b_ptr}, {bytes}",
+
+            // ac
+            "vfmul.vv v16, v0, v8",
+
+            // ad
+            "vfmul.vv v20, v0, v12",
+
+            // ac - bd
+            "vfnmsac.vv v16, v4, v12",
+
+            // ad + bc
+            "vfmacc.vv v20, v4, v8",
+
+            // There's a more than zero risk that len is not set correctly,
+            // here, for inputs that are not even multiples.
+            "vsetvli zero,{len},e32,m8,ta,ma",
+            "vfadd.vv v24, v24, v16",
+            "sub {len}, {len}, {elements}",
+
+            "bnez {len}, 1b",
+
+            "li {elements}, 256",
+            "vsetvli {elements},{elements},e32,m4,ta,ma",
+
+            "vfmv.v.f v0, {fzero}",
+            "vfredusum.vs v24, v24, v0",
+            "vfredusum.vs v28, v28, v0",
+            "vfmv.f.s {real}, v24",
+            "vfmv.f.s {imag}, v28",
+            len = inout(reg) left.len() => _,
+            a_ptr = inout(reg) left.as_ptr() => _,
+            b_ptr = inout(reg) right.as_ptr() => _,
+            real = lateout(freg) real,
+            imag = lateout(freg) imag,
+            fzero = in(freg) 0.0f32,
+            elements = out(reg) _,
+            bytes = out(reg) _,
+            options(readonly, nostack),
+        );
+        Complex::new(real, imag)
+    }
+}
+
+/// Multiply two complex vectors, summing up the results.
+#[cfg(target_arch = "riscv64")]
+#[target_feature(enable = "v")]
+#[inline(never)]
 pub fn mul_sum_cvec_asm_m4(left: &[Complex], right: &[Complex]) -> Complex {
     unsafe {
         let mut real;
@@ -543,6 +624,132 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
             options(nostack),
         );
         ret
+    }
+}
+
+pub fn my_atan_6(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    unsafe {
+        asm!(
+            "vfmv.v.f v4, {fco_0}",
+            "vfmv.v.f v8, {fco_1}",
+            "vfmv.v.f v12, {fco_2}",
+            "vfmv.v.f v16, {fco_3}",
+            "vfmv.v.f v20, {fco_4}",
+            "1:",
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vfmv.v.f v24, {fco_5}",
+            "vle32.v v0, ({in_ptr})",
+            "vfmul.vv v28, v0, v0", // x_sq
+            "vfmadd.vv v24, v28, v20",
+            "vfmadd.vv v24, v28, v16",
+            "vfmadd.vv v24, v28, v12",
+            "vfmadd.vv v24, v28, v8",
+            "vfmadd.vv v24, v28, v4",
+            "vfmul.vv v0, v0, v24",
+            "vse32.v v0, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t0",
+            "add {out_ptr}, {in_ptr}, t0",
+            "bnez {len}, 1b",
+            "",
+            len = inout(reg) inp.len() => _,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            fco_0 = in(freg) 0.99997726f32,
+            fco_1 = in(freg) -0.33262347f32,
+            fco_2 = in(freg) 0.19354346f32,
+            fco_3 = in(freg) -0.11643287f32,
+            fco_4 = in(freg) 0.05265332f32,
+            fco_5 = in(freg) -0.01172120f32,
+        )
+    }
+}
+
+pub fn my_atan_m2_7(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    unsafe {
+        asm!(
+            "vfmv.v.f v4, {c1}",
+            "vfmv.v.f v6, {c3}",
+            "vfmv.v.f v8, {c5}",
+            "vfmv.v.f v10, {c7}",
+            "vfmv.v.f v12, {c9}",
+            "vfmv.v.f v14, {c11}",
+            "vfmv.v.f v16, {c13}",
+            "1:",
+            "vsetvli t0, {len}, e32, m2, ta, ma",
+            "vle32.v v0, ({in_ptr})",
+            "vfmul.vv v28, v0, v0", // x_sq
+            "vfmadd.vv v24, v28, v16", // c13
+            "vfmadd.vv v24, v28, v14", // c11
+            "vfmadd.vv v24, v28, v12", // c9
+            "vfmadd.vv v24, v28, v10", // c7
+            "vfmadd.vv v24, v28, v8", // c5
+            "vfmadd.vv v24, v28, v6", // c3
+            "vfmadd.vv v24, v28, v4", // c1
+            "vfmul.vv v0, v0, v24",
+            "vse32.v v0, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t0",
+            "add {out_ptr}, {in_ptr}, t0",
+            "bnez {len}, 1b",
+            "",
+            len = inout(reg) inp.len() => _,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            c1 = in(freg) 0.999996115f32,
+            c3 = in(freg) -0.333173758f32,
+            c5 = in(freg) 0.198078690f32,
+            c7 = in(freg) -0.132335096f32,
+            c9 = in(freg) 0.079626318f32,
+            c11 = in(freg) -0.033606269f32,
+            c13 = in(freg) 0.006812411f32,
+        )
+    }
+}
+
+
+pub fn my_atan_7(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    unsafe {
+        asm!(
+            "vfmv.v.f v4, {c9}",
+            "vfmv.v.f v8, {c3}",
+            "vfmv.v.f v12, {c5}",
+            "vfmv.v.f v16, {c7}",
+            "1:",
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vfmv.v.f v24, {c13}",
+            "vfmv.v.f v20, {c11}",
+            "vle32.v v0, ({in_ptr})",
+            "vfmul.vv v28, v0, v0", // x_sq
+            "vfmadd.vv v24, v28, v24", // c13
+            "vfmadd.vv v24, v28, v20", // c11
+            "vfmv.v.f v20, {c1}", // load c1
+            "vfmadd.vv v24, v28, v4", // c9
+            "vfmadd.vv v24, v28, v16", // c7
+            "vfmadd.vv v24, v28, v12", // c5
+            "vfmadd.vv v24, v28, v8", // c3
+            "vfmadd.vv v24, v28, v20", // c1
+            "vfmul.vv v0, v0, v24",
+            "vse32.v v0, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t0",
+            "add {out_ptr}, {in_ptr}, t0",
+            "bnez {len}, 1b",
+            "",
+            len = inout(reg) inp.len() => _,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            c1 = in(freg) 0.999996115f32,
+            c3 = in(freg) -0.333173758f32,
+            c5 = in(freg) 0.198078690f32,
+            c7 = in(freg) -0.132335096f32,
+            c9 = in(freg) 0.079626318f32,
+            c11 = in(freg) -0.033606269f32,
+            c13 = in(freg) 0.006812411f32,
+        )
     }
 }
 

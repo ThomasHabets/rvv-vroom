@@ -59,6 +59,30 @@ fn bench_mul_fvec_asm_m8(b: &mut Bencher) {
 }
 
 #[bench]
+fn bench_atan_fvec_asm_m4_6(b: &mut Bencher) {
+    let (mut left, right) = gen_ftest();
+    b.iter(|| rvv_vroom::my_atan_6(&mut left.data, &right.data) );
+}
+
+#[bench]
+fn bench_atan_fvec_asm_m4_7(b: &mut Bencher) {
+    let (mut left, right) = gen_ftest();
+    b.iter(|| rvv_vroom::my_atan_7(&mut left.data, &right.data) );
+}
+
+#[bench]
+fn bench_atan_fvec_asm_m2_7(b: &mut Bencher) {
+    let (mut left, right) = gen_ftest();
+    b.iter(|| rvv_vroom::my_atan_m2_7(&mut left.data, &right.data) );
+}
+
+#[bench]
+fn bench_atan_fvec_volk(b: &mut Bencher) {
+    let (mut left, right) = gen_ftest();
+    b.iter(|| volk::volk_32f_atan_32f(&mut left.data, &right.data));
+}
+
+#[bench]
 fn bench_mul_fvec_asm_m4(b: &mut Bencher) {
     let (left, right) = gen_ftest();
     b.iter(|| unsafe { mul_fvec_asm_m4(&left.data, &right.data) });

@@ -33,12 +33,39 @@ fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
     ret
 }
 
+#[cfg(target_arch = "riscv64")]
+#[target_feature(enable = "v")]
+fn check_rvv() {
+    let enabled = cfg!(target_feature="v");
+    let detected = std::arch::is_riscv_feature_detected!("v");
+    println!("RVV enabled={enabled} detected={detected}");
+    if !detected {
+        eprintln!("Warning! Vector extension not detected");
+    }
+}
+
+
+
 fn main() {
     #[cfg(target_arch = "riscv64")]
     {
-        println!("RVV compiled={} detected={}", cfg!(target_feature="v"), std::arch::is_riscv_feature_detected!("v"));
+        unsafe {check_rvv()};
         let n = 1024;
         let left = vec![Complex::default(); n];
         unsafe { mul_vec_rvv(&left, &left) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn atan() {
+        let inp = &[0.0f32, 0.1, 0.2, -0.1, -0.2];
+        let mut out = vec![0.0f32; inp.len()];
+        let want: Vec<_> = inp.iter().map(|f| f.atan()).collect();
+        rvv_vroom::my_atan_7(&mut out, inp);
+        assert_eq!(out, want);
     }
 }
