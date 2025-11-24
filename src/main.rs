@@ -36,7 +36,7 @@ fn mul_vec_rvv(left: &[Complex], right: &[Complex]) -> Vec<Complex> {
 #[cfg(target_arch = "riscv64")]
 #[target_feature(enable = "v")]
 fn check_rvv() {
-    let enabled = cfg!(target_feature="v");
+    let enabled = cfg!(target_feature = "v");
     let detected = std::arch::is_riscv_feature_detected!("v");
     println!("RVV enabled={enabled} detected={detected}");
     if !detected {
@@ -44,12 +44,10 @@ fn check_rvv() {
     }
 }
 
-
-
 fn main() {
     #[cfg(target_arch = "riscv64")]
     {
-        unsafe {check_rvv()};
+        unsafe { check_rvv() };
         let n = 1024;
         let left = vec![Complex::default(); n];
         unsafe { mul_vec_rvv(&left, &left) };

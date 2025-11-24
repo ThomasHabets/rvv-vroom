@@ -61,19 +61,19 @@ fn bench_mul_fvec_asm_m8(b: &mut Bencher) {
 #[bench]
 fn bench_atan_fvec_asm_m4_6(b: &mut Bencher) {
     let (mut left, right) = gen_ftest();
-    b.iter(|| rvv_vroom::my_atan_6(&mut left.data, &right.data) );
+    b.iter(|| rvv_vroom::my_atan_6(&mut left.data, &right.data));
 }
 
 #[bench]
 fn bench_atan_fvec_asm_m4_7(b: &mut Bencher) {
     let (mut left, right) = gen_ftest();
-    b.iter(|| rvv_vroom::my_atan_7(&mut left.data, &right.data) );
+    b.iter(|| rvv_vroom::my_atan_7(&mut left.data, &right.data));
 }
 
 #[bench]
 fn bench_atan_fvec_asm_m2_7(b: &mut Bencher) {
     let (mut left, right) = gen_ftest();
-    b.iter(|| rvv_vroom::my_atan_m2_7(&mut left.data, &right.data) );
+    b.iter(|| rvv_vroom::my_atan_m2_7(&mut left.data, &right.data));
 }
 
 #[bench]

@@ -666,6 +666,11 @@ pub fn my_atan_6(out: &mut [f32], inp: &[f32]) {
     }
 }
 
+// approximations for digital computers.
+//
+// https://blasingame.engr.tamu.edu/z_zCourse_Archive/P620_18C/P620_zReference/PDF_Txt_Hst_Apr_Cmp_(1955).pdf
+//
+// Page 136
 pub fn my_atan_m2_7(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
@@ -708,7 +713,6 @@ pub fn my_atan_m2_7(out: &mut [f32], inp: &[f32]) {
         )
     }
 }
-
 
 pub fn my_atan_7(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
