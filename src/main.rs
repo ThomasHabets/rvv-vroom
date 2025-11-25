@@ -46,17 +46,17 @@ fn check_rvv() {
 
 fn main() {
     if false {
-    #[cfg(target_arch = "riscv64")]
-    {
-        unsafe { check_rvv() };
-        let n = 1024;
-        let left = vec![Complex::default(); n];
-        unsafe { mul_vec_rvv(&left, &left) };
-    }
+        #[cfg(target_arch = "riscv64")]
+        {
+            unsafe { check_rvv() };
+            let n = 1024;
+            let left = vec![Complex::default(); n];
+            unsafe { mul_vec_rvv(&left, &left) };
+        }
     }
     let mut inp = Vec::new();
     let mut correct = Vec::new();
-    for t in -20_000..20_000 {
+    for t in -100_000..100_000 {
         let t = t as f32 / 10_000.0;
         //println!("{}", t as f32 / 10_000.0);
         inp.push(t);
@@ -68,9 +68,14 @@ fn main() {
     rvv_vroom::my_atan_7_m2(&mut my_7_m2, &inp);
     let mut my_7_m4 = vec![0.0f32; inp.len()];
     rvv_vroom::my_atan_7_m4(&mut my_7_m4, &inp);
-    let mut my_7_m8 = vec![0.0f32; inp.len()];
-    rvv_vroom::my_atan_7_m8(&mut my_7_m8, &inp);
+    let mut my_7_full_m2 = vec![0.0f32; inp.len()];
+    rvv_vroom::my_atan_7_full_m2(&mut my_7_full_m2, &inp);
+    let mut vol = vec![0.0f32; inp.len()];
+    volk::volk_32f_atan_32f(&mut vol, &inp);
     for (n, v) in inp.iter().enumerate() {
-        println!("{v} {} {} {} {} {}", correct[n], my_6[n], my_7_m2[n], my_7_m4[n], my_7_m8[n]);
+        println!(
+            "{v} {} {} {} {} {} {}",
+            correct[n], my_6[n], my_7_m2[n], my_7_m4[n], my_7_full_m2[n], vol[n]
+        );
     }
 }

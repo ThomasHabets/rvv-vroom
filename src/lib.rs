@@ -627,6 +627,7 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
     }
 }
 
+// Only valid in the range -1 to 1.
 pub fn my_atan_6_m4(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
@@ -664,6 +665,7 @@ pub fn my_atan_6_m4(out: &mut [f32], inp: &[f32]) {
             fco_3 = in(freg) -0.11643287f32,
             fco_4 = in(freg) 0.05265332f32,
             fco_5 = in(freg) -0.01172120f32,
+            options(nostack),
         )
     }
 }
@@ -673,6 +675,8 @@ pub fn my_atan_6_m4(out: &mut [f32], inp: &[f32]) {
 // https://blasingame.engr.tamu.edu/z_zCourse_Archive/P620_18C/P620_zReference/PDF_Txt_Hst_Apr_Cmp_(1955).pdf
 //
 // Page 136
+//
+// Only valid in the range -1 to 1.
 pub fn my_atan_7_m2(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
@@ -714,10 +718,107 @@ pub fn my_atan_7_m2(out: &mut [f32], inp: &[f32]) {
             c9 = in(freg) 0.079626318f32,
             c11 = in(freg) -0.033606269f32,
             c13 = in(freg) 0.006812411f32,
+            options(nostack),
         )
     }
 }
 
+// approximations for digital computers.
+//
+// https://blasingame.engr.tamu.edu/z_zCourse_Archive/P620_18C/P620_zReference/PDF_Txt_Hst_Apr_Cmp_(1955).pdf
+//
+// Page 136
+//
+// This uses the approximation that's very accurate from zero to infinity, but
+// applies it to also work for negative values.
+pub fn my_atan_7_full_m2(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    unsafe {
+        // v0: raw input
+        // v2: -
+        // v4: c1
+        // v6: c3
+        // v8: c5
+        // v10: c7
+        // v12: c9
+        // v14: c11
+        // v16: c13
+        // v18: -
+        // v20: absolute input
+        // v22: -
+        // v24: running result
+        // v26: -
+        // v28: input squared
+        // v30: negator
+        asm!(
+            // Load constants and coefficients needed later.
+            "vsetvli t0, {len}, e32, m2, ta, ma",
+            "vfmv.v.f v4, {c1}",
+            "vfmv.v.f v6, {c3}",
+            "vfmv.v.f v8, {c5}",
+            "vfmv.v.f v10, {c7}",
+            "vfmv.v.f v12, {c9}",
+            "vfmv.v.f v14, {c11}",
+            "vfmv.v.f v16, {c13}",
+
+            // Loop.
+            "1:",
+            "vsetvli t0, {len}, e32, m2, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
+
+            // The algorithm only works on >= 0, for negative values we mirror
+            // it.
+            //
+            // So load raw value and absolute.
+            // Raw value is used later for investing.
+            "vle32.v v0, ({in_ptr})",
+            "vfabs.v v20, v0",
+
+            // Make (X-1)/(X+1)
+            "vfsub.vf v24, v20, {fone}",
+            "vfadd.vf v28, v20, {fone}",
+            "vfdiv.vv v20, v24, v28",
+
+            // Core calculation.
+            "vfmul.vv v28, v20, v20", // x_sq
+            "vmv.v.v v24, v16", // c13
+            "vfmadd.vv v24, v28, v14", // c11
+            "vfmadd.vv v24, v28, v12", // c9
+            "vfmadd.vv v24, v28, v10", // c7
+            "vfmadd.vv v24, v28, v8", // c5
+            "vfmadd.vv v24, v28, v6", // c3
+            "vfmadd.vv v24, v28, v4", // c1
+            "vfmul.vv v20, v20, v24", // x
+
+            // Add pi/4 and invert if needed.
+            "vfadd.vf v20, v20, {fpi4}",
+            "vfsgnj.vv v20, v20, v0",
+
+            // Store and update pointers.
+            "vse32.v v20, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
+            "bnez {len}, 1b",
+
+            len = inout(reg) inp.len() => _,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            fone = in(freg) 1.0f32,
+            fpi4 = in(freg) std::f32::consts::PI / 4.0f32,
+            c1 = in(freg) 0.999996115f32,
+            c3 = in(freg) -0.333173758f32,
+            c5 = in(freg) 0.198078690f32,
+            c7 = in(freg) -0.132335096f32,
+            c9 = in(freg) 0.079626318f32,
+            c11 = in(freg) -0.033606269f32,
+            c13 = in(freg) 0.006812411f32,
+            options(nostack),
+        )
+    }
+}
+
+// Only valid in the range -1 to 1.
 pub fn my_atan_7_m4(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
@@ -758,10 +859,12 @@ pub fn my_atan_7_m4(out: &mut [f32], inp: &[f32]) {
             c9 = in(freg) 0.079626318f32,
             c11 = in(freg) -0.033606269f32,
             c13 = in(freg) 0.006812411f32,
+            options(nostack),
         )
     }
 }
 
+// Only valid in the range -1 to 1.
 pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
@@ -790,7 +893,6 @@ pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
             "add {in_ptr}, {in_ptr}, t1",
             "add {out_ptr}, {out_ptr}, t1",
             "bnez {len}, 1b",
-            "",
             len = inout(reg) inp.len() => _,
             in_ptr = inout(reg) inp.as_ptr() => _,
             out_ptr = inout(reg) out.as_ptr() => _,
@@ -801,6 +903,61 @@ pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
             c9 = in(freg) 0.079626318f32,
             c11 = in(freg) -0.033606269f32,
             c13 = in(freg) 0.006812411f32,
+            options(nostack),
+        )
+    }
+}
+
+// Only valid in the range -1 to 1.
+pub fn my_atan_7_full_m8(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    // v0: positive or negative.
+    // v8: raw input.
+    // v16: square.
+    // v24: result.
+    unsafe {
+        asm!(
+            "1:",
+            "vsetvli t0, {len}, e32, m8, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
+            "vle32.v v0, ({in_ptr})",
+            "vfsub.vf v8, v0, {fone}",
+            "vfadd.vf v16, v0, {fone}",
+            "vfdiv.vv v0, v8, v16",
+            "vfmul.vv v8, v0, v0", // x_sq
+            "vfmv.v.f v16, {c13}",
+            "vfmv.v.f v24, {c11}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c9}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c7}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c5}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c3}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c1}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmul.vv v0, v0, v16",
+            "vfadd.vf v0, v0, {fpi4}",
+            "vse32.v v0, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
+            "bnez {len}, 1b",
+            len = inout(reg) inp.len() => _,
+            fone = in(freg) 1.0f32,
+            fpi4 = in(freg) std::f32::consts::PI / 4.0f32,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            c1 = in(freg) 0.999996115f32,
+            c3 = in(freg) -0.333173758f32,
+            c5 = in(freg) 0.198078690f32,
+            c7 = in(freg) -0.132335096f32,
+            c9 = in(freg) 0.079626318f32,
+            c11 = in(freg) -0.033606269f32,
+            c13 = in(freg) 0.006812411f32,
+            options(nostack),
         )
     }
 }
@@ -964,7 +1121,12 @@ mod tests {
     #[test]
     fn atan_big() {
         let (mut out, inp) = gen_ftest();
-        let inp: Vec<_> = inp.data.iter().copied().map(|f| if f.abs() > 1.0 { 1.0 / f } else {f}).collect();
+        let inp: Vec<_> = inp
+            .data
+            .iter()
+            .copied()
+            .map(|f| if f.abs() > 1.0 { 1.0 / f } else { f })
+            .collect();
         let want: Vec<_> = inp.iter().map(|f| f.atan()).collect();
         let table: &[(&str, fn(&mut [f32], &[f32]))] = &[
             ("my_atan_6_m4", my_atan_6_m4),
