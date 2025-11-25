@@ -639,6 +639,7 @@ pub fn my_atan_6_m4(out: &mut [f32], inp: &[f32]) {
             "vfmv.v.f v20, {fco_4}",
             "1:",
             "vsetvli t0, {len}, e32, m4, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
             "vfmv.v.f v24, {fco_5}",
             "vle32.v v0, ({in_ptr})",
             "vfmul.vv v28, v0, v0", // x_sq
@@ -650,8 +651,8 @@ pub fn my_atan_6_m4(out: &mut [f32], inp: &[f32]) {
             "vfmul.vv v0, v0, v24",
             "vse32.v v0, ({out_ptr})",
             "sub {len}, {len}, t0",
-            "add {in_ptr}, {in_ptr}, t0",
-            "add {out_ptr}, {in_ptr}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
             "bnez {len}, 1b",
             "",
             len = inout(reg) inp.len() => _,
@@ -686,9 +687,10 @@ pub fn my_atan_7_m2(out: &mut [f32], inp: &[f32]) {
             "vfmv.v.f v16, {c13}",
             "1:",
             "vsetvli t0, {len}, e32, m2, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
             "vle32.v v0, ({in_ptr})",
             "vfmul.vv v28, v0, v0", // x_sq
-            "vfmadd.vv v24, v28, v16", // c13
+            "vmv.v.v v24, v16", // c13
             "vfmadd.vv v24, v28, v14", // c11
             "vfmadd.vv v24, v28, v12", // c9
             "vfmadd.vv v24, v28, v10", // c7
@@ -698,8 +700,8 @@ pub fn my_atan_7_m2(out: &mut [f32], inp: &[f32]) {
             "vfmul.vv v0, v0, v24",
             "vse32.v v0, ({out_ptr})",
             "sub {len}, {len}, t0",
-            "add {in_ptr}, {in_ptr}, t0",
-            "add {out_ptr}, {in_ptr}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
             "bnez {len}, 1b",
             "",
             len = inout(reg) inp.len() => _,
@@ -727,11 +729,11 @@ pub fn my_atan_7_m4(out: &mut [f32], inp: &[f32]) {
             "vfmv.v.f v16, {c7}",
             "1:",
             "vsetvli t0, {len}, e32, m4, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
             "vfmv.v.f v24, {c13}",
             "vfmv.v.f v20, {c11}",
             "vle32.v v0, ({in_ptr})",
             "vfmul.vv v28, v0, v0", // x_sq
-            "vfmadd.vv v24, v28, v24", // c13
             "vfmadd.vv v24, v28, v20", // c11
             "vfmv.v.f v20, {c1}", // load c1
             "vfmadd.vv v24, v28, v4", // c9
@@ -742,8 +744,8 @@ pub fn my_atan_7_m4(out: &mut [f32], inp: &[f32]) {
             "vfmul.vv v0, v0, v24",
             "vse32.v v0, ({out_ptr})",
             "sub {len}, {len}, t0",
-            "add {in_ptr}, {in_ptr}, t0",
-            "add {out_ptr}, {in_ptr}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
             "bnez {len}, 1b",
             "",
             len = inout(reg) inp.len() => _,
@@ -766,10 +768,10 @@ pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
         asm!(
             "1:",
             "vsetvli t0, {len}, e32, m8, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
             "vle32.v v0, ({in_ptr})",
             "vfmul.vv v8, v0, v0", // x_sq
-            "vfmv.v.f v24, {c13}",
-            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v16, {c13}",
             "vfmv.v.f v24, {c11}",
             "vfmadd.vv v16, v8, v24",
             "vfmv.v.f v24, {c9}",
@@ -785,8 +787,8 @@ pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
             "vfmul.vv v0, v0, v16",
             "vse32.v v0, ({out_ptr})",
             "sub {len}, {len}, t0",
-            "add {in_ptr}, {in_ptr}, t0",
-            "add {out_ptr}, {in_ptr}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
             "bnez {len}, 1b",
             "",
             len = inout(reg) inp.len() => _,
@@ -867,7 +869,8 @@ mod tests {
                 if (a - b).abs() > 0.001 {
                     assert_eq!(
                         a, b,
-                        "{name}: diff at pos {n}\ngot: {got:?}\nwant: {want:?}"
+                        //"{name}: diff at pos {n}\ngot: {got:?}\nwant: {want:?}"
+                        "{name}: diff at pos {n}"
                     );
                 }
             });
@@ -943,7 +946,7 @@ mod tests {
 
     #[test]
     fn atan() {
-        let inp = &[0.0f32, 0.1, 0.2, -0.1, -0.2];
+        let inp = &[0.0f32, 0.1, 0.2, -0.1, -0.2, 1.0];
         let mut out = vec![0.0f32; inp.len()];
         let want: Vec<_> = inp.iter().map(|f| f.atan()).collect();
         let table: &[(&str, fn(&mut [f32], &[f32]))] = &[
@@ -955,6 +958,23 @@ mod tests {
         for (name, func) in table {
             func(&mut out, inp);
             find_diff_f(&out, &want, name);
+        }
+    }
+
+    #[test]
+    fn atan_big() {
+        let (mut out, inp) = gen_ftest();
+        let inp: Vec<_> = inp.data.iter().copied().map(|f| if f.abs() > 1.0 { 1.0 / f } else {f}).collect();
+        let want: Vec<_> = inp.iter().map(|f| f.atan()).collect();
+        let table: &[(&str, fn(&mut [f32], &[f32]))] = &[
+            ("my_atan_6_m4", my_atan_6_m4),
+            ("my_atan_7_m2", my_atan_7_m2),
+            ("my_atan_7_m4", my_atan_7_m4),
+            ("my_atan_7_m8", my_atan_7_m8),
+        ];
+        for (name, func) in table {
+            func(&mut out.data, &inp);
+            find_diff_f(&out.data, &want, name);
         }
     }
 }
