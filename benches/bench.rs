@@ -70,13 +70,11 @@ fn bench_atan_fvec_asm_7_m4(b: &mut Bencher) {
     b.iter(|| rvv_vroom::my_atan_7_m4(&mut left.data, &right.data));
 }
 
-/*
 #[bench]
 fn bench_atan_fvec_asm_7_full_m4(b: &mut Bencher) {
     let (mut left, right) = gen_ftest();
     b.iter(|| rvv_vroom::my_atan_7_full_m4(&mut left.data, &right.data));
 }
-*/
 
 #[bench]
 fn bench_atan_fvec_asm_7_m2(b: &mut Bencher) {

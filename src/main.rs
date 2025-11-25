@@ -68,14 +68,14 @@ fn main() {
     rvv_vroom::my_atan_7_m2(&mut my_7_m2, &inp);
     let mut my_7_m4 = vec![0.0f32; inp.len()];
     rvv_vroom::my_atan_7_m4(&mut my_7_m4, &inp);
-    let mut my_7_full_m2 = vec![0.0f32; inp.len()];
-    rvv_vroom::my_atan_7_full_m2(&mut my_7_full_m2, &inp);
+    let mut my_7_full_m4 = vec![0.0f32; inp.len()];
+    rvv_vroom::my_atan_7_full_m4(&mut my_7_full_m4, &inp);
     let mut vol = vec![0.0f32; inp.len()];
     volk::volk_32f_atan_32f(&mut vol, &inp);
     for (n, v) in inp.iter().enumerate() {
         println!(
             "{v} {} {} {} {} {} {}",
-            correct[n], my_6[n], my_7_m2[n], my_7_m4[n], my_7_full_m2[n], vol[n]
+            correct[n], my_6[n], my_7_m2[n], my_7_m4[n], my_7_full_m4[n], vol[n]
         );
     }
 }

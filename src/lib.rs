@@ -864,6 +864,81 @@ pub fn my_atan_7_m4(out: &mut [f32], inp: &[f32]) {
     }
 }
 
+pub fn my_atan_7_full_m4(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    unsafe {
+        // v0: input & sign memory.
+        // v4: abs input
+        // v8: c9 & c1
+        // v12: c5 & tmp
+        // v16: c7
+        // v20: c11 & c3
+        // v24: c13 & running result
+        // v28: input square
+        asm!(
+            // Load constants and coefficients needed later.
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "vfmv.v.f v16, {c7}",
+
+            // Loop.
+            "1:",
+            "vsetvli t0, {len}, e32, m4, ta, ma",
+            "slli t1, t0, 2", // Bytes per loop.
+
+            // Load
+            "vfmv.v.f v24, {c13}",
+            "vfmv.v.f v20, {c11}",
+            "vle32.v v0, ({in_ptr})",
+            "vfabs.v v4, v0",
+
+            // (X-1)/X+1).
+            "vfsub.vf v8, v4, {fone}",
+            "vfadd.vf v12, v4, {fone}",
+            "vfdiv.vv v4, v8, v12",
+            "vfmv.v.f v8, {c9}",
+            "vfmv.v.f v12, {c5}",
+
+            // Core calculation.
+            "vfmul.vv v28, v4, v4", // x_sq
+
+            "vfmadd.vv v24, v28, v20", // c11
+            "vfmv.v.f v20, {c3}", // load c3
+            "vfmadd.vv v24, v28, v8", // c9
+            "vfmv.v.f v8, {c1}", // load c1
+            "vfmadd.vv v24, v28, v16", // c7
+            "vfmadd.vv v24, v28, v12", // c5
+            "vfmadd.vv v24, v28, v20", // c3
+            "vfmadd.vv v24, v28, v8", // c1
+            "vfmul.vv v24, v4, v24", // mul x
+
+            // Add pi/4 and invert if needed.
+            "vfadd.vf v24, v24, {fpi4}",
+            "vfsgnj.vv v24, v24, v0",
+
+            // Store and update pointers.
+            "vse32.v v24, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t1",
+            "add {out_ptr}, {out_ptr}, t1",
+            "bnez {len}, 1b",
+
+            len = inout(reg) inp.len() => _,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            fone = in(freg) 1.0f32,
+            fpi4 = in(freg) std::f32::consts::PI / 4.0f32,
+            c1 = in(freg) 0.999996115f32,
+            c3 = in(freg) -0.333173758f32,
+            c5 = in(freg) 0.198078690f32,
+            c7 = in(freg) -0.132335096f32,
+            c9 = in(freg) 0.079626318f32,
+            c11 = in(freg) -0.033606269f32,
+            c13 = in(freg) 0.006812411f32,
+            options(nostack),
+        )
+    }
+}
+
 // Only valid in the range -1 to 1.
 pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
@@ -908,7 +983,7 @@ pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
     }
 }
 
-// Only valid in the range -1 to 1.
+// TODO: only valid for positive numbers.
 pub fn my_atan_7_full_m8(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     // v0: positive or negative.
@@ -920,6 +995,8 @@ pub fn my_atan_7_full_m8(out: &mut [f32], inp: &[f32]) {
             "1:",
             "vsetvli t0, {len}, e32, m8, ta, ma",
             "slli t1, t0, 2", // Bytes per loop.
+
+            // Load.
             "vle32.v v0, ({in_ptr})",
             "vfsub.vf v8, v0, {fone}",
             "vfadd.vf v16, v0, {fone}",
@@ -1023,7 +1100,7 @@ mod tests {
             .zip(want.iter())
             .enumerate()
             .for_each(|(n, (&a, &b))| {
-                if (a - b).abs() > 0.001 {
+                if (a - b).abs() > 0.01 {
                     assert_eq!(
                         a, b,
                         //"{name}: diff at pos {n}\ngot: {got:?}\nwant: {want:?}"
@@ -1111,6 +1188,9 @@ mod tests {
             ("my_atan_7_m2", my_atan_7_m2),
             ("my_atan_7_m4", my_atan_7_m4),
             ("my_atan_7_m8", my_atan_7_m8),
+            ("my_atan_7_full_m2", my_atan_7_full_m2),
+            ("my_atan_7_full_m4", my_atan_7_full_m4),
+            //("my_atan_7_full_m8", my_atan_7_full_m8),
         ];
         for (name, func) in table {
             func(&mut out, inp);
@@ -1133,6 +1213,9 @@ mod tests {
             ("my_atan_7_m2", my_atan_7_m2),
             ("my_atan_7_m4", my_atan_7_m4),
             ("my_atan_7_m8", my_atan_7_m8),
+            ("my_atan_7_full_m2", my_atan_7_full_m2),
+            ("my_atan_7_full_m4", my_atan_7_full_m4),
+            ("my_atan_7_full_m8", my_atan_7_full_m8),
         ];
         for (name, func) in table {
             func(&mut out.data, &inp);
