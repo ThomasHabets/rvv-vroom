@@ -627,10 +627,11 @@ pub fn mul_cvec_asm_m4_stride(left: &[Complex], right: &[Complex]) -> Vec<Comple
     }
 }
 
-pub fn my_atan_6(out: &mut [f32], inp: &[f32]) {
+pub fn my_atan_6_m4(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
         asm!(
+            "vsetvli t0, {len}, e32, m4, ta, ma",
             "vfmv.v.f v4, {fco_0}",
             "vfmv.v.f v8, {fco_1}",
             "vfmv.v.f v12, {fco_2}",
@@ -671,10 +672,11 @@ pub fn my_atan_6(out: &mut [f32], inp: &[f32]) {
 // https://blasingame.engr.tamu.edu/z_zCourse_Archive/P620_18C/P620_zReference/PDF_Txt_Hst_Apr_Cmp_(1955).pdf
 //
 // Page 136
-pub fn my_atan_m2_7(out: &mut [f32], inp: &[f32]) {
+pub fn my_atan_7_m2(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
         asm!(
+            "vsetvli t0, {len}, e32, m2, ta, ma",
             "vfmv.v.f v4, {c1}",
             "vfmv.v.f v6, {c3}",
             "vfmv.v.f v8, {c5}",
@@ -714,10 +716,11 @@ pub fn my_atan_m2_7(out: &mut [f32], inp: &[f32]) {
     }
 }
 
-pub fn my_atan_7(out: &mut [f32], inp: &[f32]) {
+pub fn my_atan_7_m4(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
     unsafe {
         asm!(
+            "vsetvli t0, {len}, e32, m4, ta, ma",
             "vfmv.v.f v4, {c9}",
             "vfmv.v.f v8, {c3}",
             "vfmv.v.f v12, {c5}",
@@ -737,6 +740,49 @@ pub fn my_atan_7(out: &mut [f32], inp: &[f32]) {
             "vfmadd.vv v24, v28, v8", // c3
             "vfmadd.vv v24, v28, v20", // c1
             "vfmul.vv v0, v0, v24",
+            "vse32.v v0, ({out_ptr})",
+            "sub {len}, {len}, t0",
+            "add {in_ptr}, {in_ptr}, t0",
+            "add {out_ptr}, {in_ptr}, t0",
+            "bnez {len}, 1b",
+            "",
+            len = inout(reg) inp.len() => _,
+            in_ptr = inout(reg) inp.as_ptr() => _,
+            out_ptr = inout(reg) out.as_ptr() => _,
+            c1 = in(freg) 0.999996115f32,
+            c3 = in(freg) -0.333173758f32,
+            c5 = in(freg) 0.198078690f32,
+            c7 = in(freg) -0.132335096f32,
+            c9 = in(freg) 0.079626318f32,
+            c11 = in(freg) -0.033606269f32,
+            c13 = in(freg) 0.006812411f32,
+        )
+    }
+}
+
+pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
+    use std::arch::asm;
+    unsafe {
+        asm!(
+            "1:",
+            "vsetvli t0, {len}, e32, m8, ta, ma",
+            "vle32.v v0, ({in_ptr})",
+            "vfmul.vv v8, v0, v0", // x_sq
+            "vfmv.v.f v24, {c13}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c11}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c9}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c7}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c5}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c3}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmv.v.f v24, {c1}",
+            "vfmadd.vv v16, v8, v24",
+            "vfmul.vv v0, v0, v16",
             "vse32.v v0, ({out_ptr})",
             "sub {len}, {len}, t0",
             "add {in_ptr}, {in_ptr}, t0",
@@ -818,8 +864,11 @@ mod tests {
             .zip(want.iter())
             .enumerate()
             .for_each(|(n, (&a, &b))| {
-                if (a - b).abs() > 0.1 {
-                    assert_eq!(a, b, "{name}: diff at pos {n}");
+                if (a - b).abs() > 0.001 {
+                    assert_eq!(
+                        a, b,
+                        "{name}: diff at pos {n}\ngot: {got:?}\nwant: {want:?}"
+                    );
                 }
             });
     }
@@ -889,6 +938,23 @@ mod tests {
                 (diff.im / got.im).abs() < 0.01,
                 "{name}: Imag out of range: {got} {want}"
             );
+        }
+    }
+
+    #[test]
+    fn atan() {
+        let inp = &[0.0f32, 0.1, 0.2, -0.1, -0.2];
+        let mut out = vec![0.0f32; inp.len()];
+        let want: Vec<_> = inp.iter().map(|f| f.atan()).collect();
+        let table: &[(&str, fn(&mut [f32], &[f32]))] = &[
+            ("my_atan_6_m4", my_atan_6_m4),
+            ("my_atan_7_m2", my_atan_7_m2),
+            ("my_atan_7_m4", my_atan_7_m4),
+            ("my_atan_7_m8", my_atan_7_m8),
+        ];
+        for (name, func) in table {
+            func(&mut out, inp);
+            find_diff_f(&out, &want, name);
         }
     }
 }

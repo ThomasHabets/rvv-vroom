@@ -53,17 +53,3 @@ fn main() {
         unsafe { mul_vec_rvv(&left, &left) };
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn atan() {
-        let inp = &[0.0f32, 0.1, 0.2, -0.1, -0.2];
-        let mut out = vec![0.0f32; inp.len()];
-        let want: Vec<_> = inp.iter().map(|f| f.atan()).collect();
-        rvv_vroom::my_atan_7(&mut out, inp);
-        assert_eq!(out, want);
-    }
-}
