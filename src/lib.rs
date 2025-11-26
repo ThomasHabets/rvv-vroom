@@ -983,12 +983,11 @@ pub fn my_atan_7_m8(out: &mut [f32], inp: &[f32]) {
     }
 }
 
-// TODO: only valid for positive numbers.
 pub fn my_atan_7_full_m8(out: &mut [f32], inp: &[f32]) {
     use std::arch::asm;
-    // v0: positive or negative.
-    // v8: raw input.
-    // v16: square.
+    // v0: tweaked input.
+    // v8: tmp
+    // v16: tmp & square
     // v24: result.
     unsafe {
         asm!(
@@ -998,26 +997,42 @@ pub fn my_atan_7_full_m8(out: &mut [f32], inp: &[f32]) {
 
             // Load.
             "vle32.v v0, ({in_ptr})",
-            "vfsub.vf v8, v0, {fone}",
-            "vfadd.vf v16, v0, {fone}",
-            "vfdiv.vv v0, v8, v16",
-            "vfmul.vv v8, v0, v0", // x_sq
-            "vfmv.v.f v16, {c13}",
-            "vfmv.v.f v24, {c11}",
-            "vfmadd.vv v16, v8, v24",
-            "vfmv.v.f v24, {c9}",
-            "vfmadd.vv v16, v8, v24",
-            "vfmv.v.f v24, {c7}",
-            "vfmadd.vv v16, v8, v24",
-            "vfmv.v.f v24, {c5}",
-            "vfmadd.vv v16, v8, v24",
-            "vfmv.v.f v24, {c3}",
-            "vfmadd.vv v16, v8, v24",
-            "vfmv.v.f v24, {c1}",
-            "vfmadd.vv v16, v8, v24",
-            "vfmul.vv v0, v0, v16",
-            "vfadd.vf v0, v0, {fpi4}",
-            "vse32.v v0, ({out_ptr})",
+            "vfabs.v v0, v0",
+
+            // (X-1)/(X+1), but with sign extension.
+            "vfsub.vf v16, v0, {fone}",
+            "vfadd.vf v24, v0, {fone}",
+            "vfdiv.vv v0, v16, v24",
+
+            // Core calculation.
+            "vfmul.vv v16, v0, v0", // x_sq
+            "vfmv.v.f v24, {c13}",
+            "vfmv.v.f v8, {c11}",
+            "vfmadd.vv v24, v16, v8",
+            "vfmv.v.f v8, {c9}",
+            "vfmadd.vv v24, v16, v8",
+            "vfmv.v.f v8, {c7}",
+            "vfmadd.vv v24, v16, v8",
+            "vfmv.v.f v8, {c5}",
+            "vfmadd.vv v24, v16, v8",
+            "vfmv.v.f v8, {c3}",
+            "vfmadd.vv v24, v16, v8",
+            "vfmv.v.f v8, {c1}",
+            "vfmadd.vv v24, v16, v8",
+            "vfmul.vv v24, v0, v24", // x
+
+            // Add pi/4. Need to read input again just for the signs.
+            //
+            // TODO: Is there a sneaky way to avoid reading this again?
+            // For the main calculation above we only have four registers, and
+            // we need xx, result, tmp, and later the tweaked input.
+            "vle32.v v0, ({in_ptr})",
+            "vfmv.v.f v8, {fpi4}",
+            "vfadd.vv v24, v24, v8",
+            "vfsgnj.vv v24, v24, v0",
+
+            // Stora end update pointers.
+            "vse32.v v24, ({out_ptr})",
             "sub {len}, {len}, t0",
             "add {in_ptr}, {in_ptr}, t1",
             "add {out_ptr}, {out_ptr}, t1",
@@ -1190,7 +1205,7 @@ mod tests {
             ("my_atan_7_m8", my_atan_7_m8),
             ("my_atan_7_full_m2", my_atan_7_full_m2),
             ("my_atan_7_full_m4", my_atan_7_full_m4),
-            //("my_atan_7_full_m8", my_atan_7_full_m8),
+            ("my_atan_7_full_m8", my_atan_7_full_m8),
         ];
         for (name, func) in table {
             func(&mut out, inp);
